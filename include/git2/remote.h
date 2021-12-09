@@ -635,6 +635,15 @@ struct git_remote_callbacks {
 	 */
 	git_url_resolve_cb resolve_url;
 #endif
+	/**
+	 * Called after successful connection to `remote`.
+	 */
+	int GIT_CALLBACK(connect)(git_remote *remote, void *payload);
+
+	/**
+	 * Called before disconnection from `remote`.
+	 */
+	int GIT_CALLBACK(disconnect)(git_remote *remote, void *payload);
 };
 
 #define GIT_REMOTE_CALLBACKS_VERSION 1

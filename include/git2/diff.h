@@ -414,7 +414,7 @@ typedef struct {
 	 * The number of unchanged lines that define the boundary of a hunk
 	 * (and to display before and after). Defaults to 3.
 	 */
-	uint32_t    context_lines;
+	int32_t    context_lines;
 	/**
 	 * The maximum number of unchanged lines between hunk boundaries before
 	 * the hunks will be merged into one. Defaults to 0.
@@ -454,7 +454,7 @@ typedef struct {
  * `git_diff_options_init` programmatic initialization.
  */
 #define GIT_DIFF_OPTIONS_INIT \
-	{GIT_DIFF_OPTIONS_VERSION, 0, GIT_SUBMODULE_IGNORE_UNSPECIFIED, {NULL,0}, NULL, NULL, NULL, 3}
+	{GIT_DIFF_OPTIONS_VERSION, 0, GIT_SUBMODULE_IGNORE_UNSPECIFIED, {NULL,0}, NULL, NULL, NULL, -1}
 
 /**
  * Initialize git_diff_options structure

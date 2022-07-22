@@ -439,7 +439,7 @@ static int buffer_hunk_cb(
 
 	GIT_UNUSED(delta);
 
-	wedge_line = (hunk->old_lines == 0) ? hunk->new_start : hunk->old_start;
+	wedge_line = hunk->new_start + (hunk->new_lines == 0 ? 1 : 0);
 	blame->current_diff_line = wedge_line;
 
 	blame->current_hunk = (git_blame_hunk*)git_blame_get_hunk_byline(blame, wedge_line);
@@ -452,7 +452,7 @@ static int buffer_hunk_cb(
 	} else if (!hunk_starts_at_or_after_line(blame->current_hunk, wedge_line)){
 		/* If this hunk doesn't start between existing hunks, split a hunk up so it does */
 		blame->current_hunk = split_hunk_in_vector(&blame->hunks, blame->current_hunk,
-				wedge_line - blame->current_hunk->orig_start_line_number, true);
+				wedge_line - blame->current_hunk->final_start_line_number, true);
 		GIT_ERROR_CHECK_ALLOC(blame->current_hunk);
 	}
 
@@ -476,8 +476,9 @@ static int buffer_line_cb(
 		if (hunk_is_bufferblame(blame->current_hunk) &&
 		    hunk_ends_at_or_before_line(blame->current_hunk, blame->current_diff_line)) {
 			/* Append to the current buffer-blame hunk */
+			shift_hunks_by(&blame->hunks, blame->current_hunk->final_start_line_number +
+				blame->current_hunk->lines_in_hunk, 1);
 			blame->current_hunk->lines_in_hunk++;
-			shift_hunks_by(&blame->hunks, blame->current_diff_line+1, 1);
 		} else {
 			/* Create a new buffer-blame hunk with this line */
 			shift_hunks_by(&blame->hunks, blame->current_diff_line, 1);
@@ -491,11 +492,11 @@ static int buffer_line_cb(
 
 	if (line->origin == GIT_DIFF_LINE_DELETION) {
 		/* Trim the line from the current hunk; remove it if it's now empty */
-		size_t shift_base = blame->current_diff_line + blame->current_hunk->lines_in_hunk+1;
+		size_t shift_base = blame->current_hunk->final_start_line_number +
+			blame->current_hunk->lines_in_hunk;
 
 		if (--(blame->current_hunk->lines_in_hunk) == 0) {
 			size_t i;
-			shift_base--;
 			if (!git_vector_search2(&i, &blame->hunks, ptrs_equal_cmp, blame->current_hunk)) {
 				git_vector_remove(&blame->hunks, i);
 				free_hunk(blame->current_hunk);

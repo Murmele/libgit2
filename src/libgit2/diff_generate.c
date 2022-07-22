@@ -534,13 +534,10 @@ static int diff_generated_apply_options(
 
 	/* Don't set GIT_DIFFCAPS_USE_DEV - compile time option in core git */
 
-	/* If not given explicit `opts`, check `diff.xyz` configs */
-	if (!opts) {
-		int context = git_config__get_int_force(cfg, "diff.context", 3);
-		diff->base.opts.context_lines = context >= 0 ? (uint32_t)context : 3;
-
-		/* add other defaults here */
-	}
+	/* Initialize context_lines from config */
+	if (diff->base.opts.context_lines < 0)
+		diff->base.opts.context_lines =
+			git_config__get_int_force(cfg, "diff.context", 3);
 
 	/* Reverse src info if diff is reversed */
 	if (DIFF_FLAG_IS_SET(diff, GIT_DIFF_REVERSE)) {

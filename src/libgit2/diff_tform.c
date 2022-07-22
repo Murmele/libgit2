@@ -189,6 +189,8 @@ int git_diff__merge(
 		onto->opts.new_prefix =
 			git_pool_strdup_safe(&onto->pool, onto->opts.new_prefix);
 	}
+	if ((from->opts.flags & GIT_DIFF_DISABLE_MMAP) != 0)
+		onto->opts.flags |= GIT_DIFF_DISABLE_MMAP;
 
 	git_vector_free_deep(&onto_new);
 	git_pool_clear(&onto_pool);

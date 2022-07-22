@@ -3471,6 +3471,7 @@ int git_repository_hashfile(
 	uint64_t len;
 	git_str full_path = GIT_STR_INIT;
 	const char *workdir = git_repository_workdir(repo);
+	struct stat st;
 
 	 /* as_path can be NULL */
 	GIT_ASSERT_ARG(out);
@@ -3480,6 +3481,10 @@ int git_repository_hashfile(
 	if ((error = git_fs_path_join_unrooted(&full_path, path, workdir, NULL)) < 0 ||
 	    (error = git_path_validate_str_length(repo, &full_path)) < 0)
 		return error;
+	if (!p_lstat(full_path.ptr, &st) && S_ISLNK(st.st_mode)) {
+		error = git_odb__hashlink(out, full_path.ptr);
+		goto cleanup;
+	}
 
 	/*
 	 * NULL as_path means that we should derive it from the
@@ -3499,7 +3504,7 @@ int git_repository_hashfile(
 			GIT_FILTER_TO_ODB, GIT_FILTER_DEFAULT);
 
 		if (error < 0)
-			return error;
+			goto cleanup;
 	}
 
 	/* at this point, error is a count of the number of loaded filters */

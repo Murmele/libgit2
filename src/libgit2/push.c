@@ -192,12 +192,12 @@ int git_push_update_tips(git_push *push, const git_remote_callbacks *callbacks)
 			/* This is a tag */
 			git_str_puts(&remote_ref_name, status->ref);
 		} else {
-			if ((error = git_refspec_transform(&remote_ref_name, fetch_spec, status->ref)) < 0)
+			if ((error = git_refspec__transform(&remote_ref_name, fetch_spec, status->ref)) < 0)
 				goto on_error;
 
 			/* Update the remote ref */
 			if (git_oid_iszero(&push_spec->loid)) {
-				error = git_reference_lookup(&remote_ref, push->remote->repo, git_buf_cstr(&remote_ref_name));
+				error = git_reference_lookup(&remote_ref, push->remote->repo, git_str_cstr(&remote_ref_name));
 
 				if (error >= 0) {
 					error = git_reference_delete(remote_ref);

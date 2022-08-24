@@ -3482,7 +3482,7 @@ int git_repository_hashfile(
 	    (error = git_path_validate_str_length(repo, &full_path)) < 0)
 		return error;
 	if (!p_lstat(full_path.ptr, &st) && S_ISLNK(st.st_mode)) {
-		error = git_odb__hashlink(out, full_path.ptr);
+		error = git_odb__hashlink(out, full_path.ptr, GIT_OID_SHA1);
 		goto cleanup;
 	}
 

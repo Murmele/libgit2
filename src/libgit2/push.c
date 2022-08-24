@@ -170,18 +170,7 @@ int git_push_update_tips(git_push *push, const git_remote_callbacks *callbacks)
 		if (status->msg)
 			continue;
 
-		/* Find the corresponding remote ref */
-		fetch_spec = git_remote__matching_refspec(push->remote, status->ref);
-		if (!fetch_spec)
-			continue;
-
-		/* Clear the buffer which can be dirty from previous iteration */
-		git_str_clear(&remote_ref_name);
-
-		if ((error = git_refspec__transform(&remote_ref_name, fetch_spec, status->ref)) < 0)
-			goto on_error;
-
-		/* Find matching  push ref spec */
+		/* Find matching push ref spec */
 		git_vector_foreach(&push->specs, j, push_spec) {
 			if (!strcmp(push_spec->refspec.dst, status->ref))
 				break;
@@ -191,26 +180,42 @@ int git_push_update_tips(git_push *push, const git_remote_callbacks *callbacks)
 		if (j == push->specs.length)
 			continue;
 
-		/* Update the remote ref */
-		if (git_oid_is_zero(&push_spec->loid)) {
-			error = git_reference_lookup(&remote_ref, push->remote->repo, git_str_cstr(&remote_ref_name));
+		/* Skip updates where the oid is unchanged */
+		if (git_oid_cmp(&push_spec->loid, &push_spec->roid) == 0)
+			continue;
 
-			if (error >= 0) {
-				error = git_reference_delete(remote_ref);
-				git_reference_free(remote_ref);
-			}
+		/* Clear the buffer which can be dirty from previous iteration */
+		git_str_clear(&remote_ref_name);
+
+		/* Find the corresponding remote ref */
+		if ((fetch_spec = git_remote__matching_refspec(push->remote, status->ref)) == NULL) {
+			/* This is a tag */
+			git_str_puts(&remote_ref_name, status->ref);
 		} else {
-			error = git_reference_create(NULL, push->remote->repo,
-						git_str_cstr(&remote_ref_name), &push_spec->loid, 1,
-						"update by push");
-		}
-
-		if (error < 0) {
-			if (error != GIT_ENOTFOUND)
+			if ((error = git_refspec_transform(&remote_ref_name, fetch_spec, status->ref)) < 0)
 				goto on_error;
 
-			git_error_clear();
-			fire_callback = 0;
+			/* Update the remote ref */
+			if (git_oid_iszero(&push_spec->loid)) {
+				error = git_reference_lookup(&remote_ref, push->remote->repo, git_buf_cstr(&remote_ref_name));
+
+				if (error >= 0) {
+					error = git_reference_delete(remote_ref);
+					git_reference_free(remote_ref);
+				}
+			} else {
+				error = git_reference_create(NULL, push->remote->repo,
+							git_str_cstr(&remote_ref_name), &push_spec->loid, 1,
+							"update by push");
+			}
+
+			if (error < 0) {
+				if (error != GIT_ENOTFOUND)
+					goto on_error;
+
+				git_error_clear();
+				fire_callback = 0;
+			}
 		}
 
 		if (fire_callback && callbacks && callbacks->update_tips) {
@@ -220,6 +225,7 @@ int git_push_update_tips(git_push *push, const git_remote_callbacks *callbacks)
 			if (error < 0)
 				goto on_error;
 		}
+		git_str_dispose(&remote_ref_name);
 	}
 
 	error = 0;

@@ -1233,52 +1233,6 @@ int git_submodule_set_fetch_recurse_submodules(git_repository *repo, const char 
 	return write_mapped_var(repo, name, _sm_recurse_map, ARRAY_SIZE(_sm_recurse_map), "fetchRecurseSubmodules", recurse);
 }
 
-static int submodule_repo_create(
-	git_repository **out,
-	git_repository *parent_repo,
-	const char *path)
-{
-	int error = 0;
-	git_str workdir = GIT_STR_INIT, repodir = GIT_STR_INIT;
-	git_repository_init_options initopt = GIT_REPOSITORY_INIT_OPTIONS_INIT;
-	git_repository *subrepo = NULL;
-
-	initopt.flags =
-		GIT_REPOSITORY_INIT_MKPATH |
-		GIT_REPOSITORY_INIT_NO_REINIT |
-		GIT_REPOSITORY_INIT_NO_DOTGIT_DIR |
-		GIT_REPOSITORY_INIT_RELATIVE_GITLINK;
-
-	/* Workdir: path to sub-repo working directory */
-	error = git_repository_workdir_path(&workdir, parent_repo, path);
-	if (error < 0)
-		goto cleanup;
-
-	initopt.workdir_path = workdir.ptr;
-
-	/**
-	 * Repodir: path to the sub-repo. sub-repo goes in:
-	 * <repo-dir>/modules/<name>/ with a gitlink in the
-	 * sub-repo workdir directory to that repository.
-	 */
-	error = git_repository__item_path(&repodir, parent_repo, GIT_REPOSITORY_ITEM_MODULES);
-	if (error < 0)
-		goto cleanup;
-	error = git_str_joinpath(&repodir, repodir.ptr, path);
-	if (error < 0)
-		goto cleanup;
-
-	error = git_repository_init_ext(&subrepo, repodir.ptr, &initopt);
-
-cleanup:
-	git_str_dispose(&workdir);
-	git_str_dispose(&repodir);
-
-	*out = subrepo;
-
-	return error;
-}
-
 /**
  * Callback to override sub-repository creation when
  * cloning a sub-repository.
@@ -1289,13 +1243,42 @@ static int git_submodule_update_repo_init_cb(
 	int bare,
 	void *payload)
 {
-	git_submodule *sm;
+	int error = 0;
+	git_str repodir = GIT_STR_INIT;
+	git_repository_init_options initopt = GIT_REPOSITORY_INIT_OPTIONS_INIT;
+	git_repository *subrepo = NULL;
+	git_submodule *sm = payload;
 
 	GIT_UNUSED(bare);
 
-	sm = payload;
+	initopt.flags =
+		GIT_REPOSITORY_INIT_MKPATH |
+		GIT_REPOSITORY_INIT_NO_REINIT |
+		GIT_REPOSITORY_INIT_NO_DOTGIT_DIR |
+		GIT_REPOSITORY_INIT_RELATIVE_GITLINK;
 
-	return submodule_repo_create(out, sm->repo, path);
+	initopt.workdir_path = path;
+
+	/**
+	 * Repodir: path to the sub-repo. sub-repo goes in:
+	 * <repo-dir>/modules/<name>/ with a gitlink in the
+	 * sub-repo workdir directory to that repository.
+	 */
+	error = git_repository__item_path(&repodir, sm->repo, GIT_REPOSITORY_ITEM_MODULES);
+	if (error < 0)
+		goto cleanup;
+	error = git_str_joinpath(&repodir, repodir.ptr, sm->path);
+	if (error < 0)
+		goto cleanup;
+
+	error = git_repository_init_ext(&subrepo, repodir.ptr, &initopt);
+
+cleanup:
+	git_str_dispose(&repodir);
+
+	*out = subrepo;
+
+	return error;
 }
 
 int git_submodule_update_options_init(git_submodule_update_options *opts, unsigned int version)
@@ -1321,7 +1304,7 @@ int git_submodule_update(git_submodule *sm, int init, git_submodule_update_optio
 	git_repository *sub_repo = NULL;
 	git_remote *remote = NULL;
 	git_object *target_commit = NULL;
-	git_str buf = GIT_STR_INIT;
+	git_str buf = GIT_STR_INIT, workdir = GIT_STR_INIT;
 	git_submodule_update_options update_options = GIT_SUBMODULE_UPDATE_OPTIONS_INIT;
 	git_clone_options clone_options = GIT_CLONE_OPTIONS_INIT;
 
@@ -1378,6 +1361,10 @@ int git_submodule_update(git_submodule *sm, int init, git_submodule_update_optio
 				goto done;
 		}
 
+		/* Build path to submodule workdir. */
+		if ((error = git_str_joinpath(&workdir, git_repository_workdir(sm->repo), sm->path)) < 0)
+			goto done;
+
 		/** submodule is initialized - now clone it **/
 		/* override repo creation */
 		clone_options.repository_cb = git_submodule_update_repo_init_cb;
@@ -1389,7 +1376,7 @@ int git_submodule_update(git_submodule *sm, int init, git_submodule_update_optio
 		 */
 		clone_options.checkout_opts.checkout_strategy = GIT_CHECKOUT_NONE;
 
-		if ((error = git_clone(&sub_repo, submodule_url, sm->path, &clone_options)) < 0 ||
+		if ((error = git_clone(&sub_repo, submodule_url, workdir.ptr, &clone_options)) < 0 ||
 			(error = git_repository_set_head_detached(sub_repo, git_submodule_index_id(sm))) < 0 ||
 			(error = git_checkout_head(sub_repo, &update_options.checkout_opts)) != 0)
 			goto done;
@@ -1433,6 +1420,7 @@ int git_submodule_update(git_submodule *sm, int init, git_submodule_update_optio
 
 done:
 	git_str_dispose(&buf);
+	git_str_dispose(&workdir);
 	git_config_free(config);
 	git_object_free(target_commit);
 	git_remote_free(remote);

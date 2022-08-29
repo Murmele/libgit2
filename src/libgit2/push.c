@@ -196,7 +196,7 @@ int git_push_update_tips(git_push *push, const git_remote_callbacks *callbacks)
 				goto on_error;
 
 			/* Update the remote ref */
-			if (git_oid_iszero(&push_spec->loid)) {
+			if (git_oid_is_zero(&push_spec->loid)) {
 				error = git_reference_lookup(&remote_ref, push->remote->repo, git_str_cstr(&remote_ref_name));
 
 				if (error >= 0) {

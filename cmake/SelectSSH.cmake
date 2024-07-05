@@ -14,6 +14,8 @@ elseif(USE_SSH STREQUAL ON OR USE_SSH STREQUAL "libssh2" OR USE_SSH STREQUAL "lo
                     set(LIBSSH2_LIBRARIES ${LIBSSH2_LIBRARY})
                     set(LIBSSH2_LDFLAGS "-lssh2")
             endif()
+        else()
+            message(FATAL_ERROR "Local build of libssh")
         endif()
 
 	if(NOT LIBSSH2_FOUND)

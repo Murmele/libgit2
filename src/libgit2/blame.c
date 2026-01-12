@@ -80,6 +80,9 @@ static git_blame_hunk *new_hunk(
 
 static void free_hunk(git_blame_hunk *hunk)
 {
+        if (!hunk) {
+                return;
+        }
 	git__free((char *)hunk->orig_path);
 	git__free((char *)hunk->summary);
 	git_signature_free(hunk->final_signature);
